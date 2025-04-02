@@ -59,7 +59,13 @@ jobs:
             - download: none
             - download: current
               displayName: Download Web Application Artifact
-              artifact: ${{ parameters.ArtifactName }}            
+              artifact: ${{ parameters.ArtifactName }} 
+
+            - task: ExtractFiles@1
+              displayName: Unzip Deployment Payload
+              inputs:
+                archiveFilePatterns: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip'
+                destinationFolder: '${{ variables.ArtifactDropPath }}'
 
             - task: qetza.replacetokens.replacetokens-task.replacetokens@3
               displayName: 'Replace tokens'
