@@ -1,0 +1,17 @@
+parameters:
+- name: ApplicationName
+  type: string
+  default: ''
+
+jobs:
+- job: SecurityScansSCAResolver
+  displayName: Perform Security Scans SCA Resolver
+  steps:
+    - task: NuGetToolInstaller@1
+      displayName: Update NuGet
+      inputs:
+        checkLatest: true
+
+    - task: NuGetAuthenticate@1
+      inputs:
+        forceReinstallCredentialProvider: true
