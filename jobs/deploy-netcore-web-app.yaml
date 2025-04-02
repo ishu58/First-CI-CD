@@ -144,6 +144,6 @@ jobs:
                   Remove-Item '${{ variables.ArtifactDropPath }}' -Force -Recurse;
 
             - ${{ if eq('${{ parameters.HealthChecksUrl }}', '') }}:
-              - template: ../tasks/perform-healthcheck-webapi.yml
+              - template: ../tasks/perform-hc-webapi.yml
                 parameters:
                   url: ${{ parameters.HealthChecksUrl }}
