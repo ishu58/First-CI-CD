@@ -65,7 +65,7 @@ jobs:
               displayName: Unzip Deployment Payload
               inputs:
                 archiveFilePatterns: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip'
-                destinationFolder: '${{ parameters.ArtifactDropPath }}'
+                destinationFolder: '${{ variables.ArtifactDropPath }}'
 
             - task: qetza.replacetokens.replacetokens-task.replacetokens@5
               displayName: 'Replace tokens'
