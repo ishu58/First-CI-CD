@@ -1,29 +1,13 @@
-
 parameters:
 - name: EnvironmentName
   type: string
-- name: ChannelName
-  type: string
-  default: ''
 - name: IISApplicationName
   type: string
-- name: AppPoolName
-  type: string
 - name: IISWebSiteName
-  type: string
-- name: AppPoolUsername
-  type: string
-- name: AppPoolPassword
   type: string
 - name: ArtifactName
   type: string
   default: 'drop'
-- name: DependsOn
-  type: object
-  default: []
-- name: OutputName
-  type: string
-  default: ''
 - name: TargetHost
   type: string
 - name: RemoteUserName
@@ -39,111 +23,42 @@ parameters:
   default: ''
 
 jobs:
-  - deployment: DeployWebApplication${{ parameters.ChannelName }}
+  - deployment: DeployWebApplication
     displayName: Deploy Web Application
-    dependsOn: ${{ parameters.DependsOn }}
-    variables:
-      - name: RemoteWebRootPath
-        value: \\${{ parameters.TargetHost }}\${{ parameters.WebRootFolderUNCPath }}
-      - name: ArtifactDropPath
-        value: \\${{ parameters.TargetHost }}\${{ parameters.WebRootFolderUNCPath }}\drop\$(Build.BuildNumber)_$(System.JobAttempt)${{ parameters.OutputName }}
-      - name: RemoteWebsitePath
-        value: ${{ variables.RemoteWebRootPath }}\${{ parameters.IISWebSiteName }}
-      - name: ApplicationPath
-        value: ${{ parameters.WebRootFolderPath }}\${{ parameters.IISWebSiteName }}\${{ parameters.IISApplicationName }}
     environment: ${{ parameters.EnvironmentName }}
     strategy:
       runOnce:
         deploy:
           steps:
-            - download: none
             - download: current
               displayName: Download Web Application Artifact
-              artifact: ${{ parameters.ArtifactName }} 
+              artifact: ${{ parameters.ArtifactName }}
 
             - task: ExtractFiles@1
               displayName: Unzip Deployment Payload
               inputs:
-                archiveFilePatterns: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip'
-                destinationFolder: '${{ variables.ArtifactDropPath }}'
-
-            - task: qetza.replacetokens.replacetokens-task.replacetokens@3
-              displayName: 'Replace tokens'
-              inputs:
-                targetFiles: |
-                  ${{ variables.ArtifactDropPath }}\appsettings-release.json
-
-            - task: PowerShell@2
-              displayName: Replace appsettings.json with appsettings-release.json
-              inputs:
-                targetType: inline
-                pwsh: true
-                script: |
-                  Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings-initial.json"
-                  Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings-release.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings.json"
+                archiveFilePatterns: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber).zip'
+                destinationFolder: '${{ parameters.WebRootFolderPath }}'
 
             - task: PowerShellOnTargetMachines@3
-              displayName: Deploy Web Application to ${{ parameters.TargetHost }} use PowerShell
+              displayName: Deploy Web Application
               inputs:
                 Machines: ${{ parameters.TargetHost }}
                 UserName: ${{ parameters.RemoteUserName }}
                 UserPassword: ${{ parameters.RemoteUserPassword }}
                 CommunicationProtocol: 'Http'
-                failOnStderr: true
                 ScriptType: 'Inline'
                 InlineScript: |
                   Import-Module WebAdministration
-                  $debugLog = "AppName: ${{ parameters.IISApplicationName }}; AppPoolName: ${{ parameters.AppPoolName }}; PhysicalPath: ${{variables.RemoteWebsitePath}}\${{ parameters.IISApplicationName }}; SiteName: ${{ parameters.IISWebSiteName }}"
-                  Write-Output $debugLog
-                  Write-Output "Check ${{ parameters.AppPoolName }} available?"
-                  if (!(Test-Path IIS:\AppPools\${{ parameters.AppPoolName }} -pathType container)) {
-                      $app_pool = New-WebAppPool -Name ${{ parameters.AppPoolName }}
-                      Write-Output "Created new app pool"
-                  }
-                  else {
-                    Write-Output "${{ parameters.AppPoolName }} is available"
-                    $app_pool_state = Get-WebAppPoolState -Name ${{ parameters.AppPoolName }}
-                    if ("Stopped" -ne $app_pool_state.Value) {
-                        Write-Output "Stop app pool ${{ parameters.AppPoolName }}"
-                        Stop-WebAppPool -Name ${{ parameters.AppPoolName }}
-                    }
-                    $app_pool = Get-Item IIS:\AppPools\${{ parameters.AppPoolName }}
-                  }
-                  $app_pool.autoStart = $true
-                  $app_pool.startMode = "OnDemand"
-                  $app_pool.managedPipelineMode = "Integrated"
-                  $app_pool.enable32BitAppOnWin64 = $false
-                  $app_pool.managedRuntimeVersion = "v4.0"
-                  $app_pool.processModel.userName = "${{ parameters.AppPoolUsername }}"
-                  $app_pool.processModel.password = "${{ parameters.AppPoolPassword }}"
-                  $app_pool.processModel.identityType = 3
-                  $app_pool | Set-Item
-                  if (Test-Path IIS:\Sites\${{ parameters.IISWebSiteName }}\${{ parameters.IISApplicationName }} -pathType container) {
-                      Write-Output "Remove ${{ parameters.IISApplicationName }} under ${{ parameters.IISWebSiteName }}"
+                  Write-Output "Deploying application: ${{ parameters.IISApplicationName }}"
+
+                  if (Test-Path IIS:\Sites\${{ parameters.IISWebSiteName }}\${{ parameters.IISApplicationName }}) {
                       Remove-WebApplication -Name ${{ parameters.IISApplicationName }} -Site ${{ parameters.IISWebSiteName }}
                   }
-                  if (Test-Path ${{ variables.ApplicationPath }} -pathType container) {
-                      Remove-Item ${{ variables.ApplicationPath }} -Force -Recurse
-                  }
-                  New-Item -ItemType Directory -Path ${{ variables.ApplicationPath }} -Force
-                  Write-Output "${{ variables.ApplicationPath }} is created"
-                  Copy-Item "${{ parameters.WebRootFolderPath }}\drop\$(Build.BuildNumber)_$(System.JobAttempt)${{ parameters.OutputName }}\**" -Destination "${{ variables.ApplicationPath }}" -Recurse -Force
-                  Write-Output "Data is copied from ${{parameters.WebRootFolderPath}}\drop\$(Build.BuildNumber)${{ parameters.OutputName }} to ${{ variables.ApplicationPath }}"
 
-                  New-WebApplication -Name "${{ parameters.IISApplicationName }}" -Site "${{ parameters.IISWebSiteName }}" -PhysicalPath "${{ variables.ApplicationPath }}" -ApplicationPool "${{ parameters.AppPoolName }}" -Force
-                  Write-Output "${{ parameters.IISApplicationName }} is created under ${{ parameters.IISWebSiteName }}"
-                  Start-WebAppPool -Name "${{ parameters.AppPoolName }}"
-                  Write-Output "${{ parameters.AppPoolName }} is started"
+                  New-WebApplication -Name "${{ parameters.IISApplicationName }}" -Site "${{ parameters.IISWebSiteName }}" -PhysicalPath "${{ parameters.WebRootFolderPath }}" -Force
+                  Write-Output "Deployment successful!"
 
-            - task: PowerShell@2
-              displayName: Apply Retention Policy
-              inputs:
-                targetType: inline
-                script: |
-                  Remove-Item '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip' -Force;
-                  Remove-Item '${{ variables.ArtifactDropPath }}' -Force -Recurse;
-
-            - ${{ if eq('${{ parameters.HealthChecksUrl }}', '') }}:
-              - template: ../tasks/perform-hc-webapi.yml
-                parameters:
-                  url: ${{ parameters.HealthChecksUrl }}
+            - ${{ if ne('${{ parameters.HealthChecksUrl }}', '') }}:
+              - script: curl -f ${{ parameters.HealthChecksUrl }}
+                displayName: Health Check
