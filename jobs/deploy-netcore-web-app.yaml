@@ -69,7 +69,7 @@ jobs:
                 cleanDestinationFolder: true
                 overwriteExistingFiles: true
 
-            - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+            - task: qetza.replacetokens.replacetokens-task.replacetokens@5
               displayName: 'Replace tokens'
               inputs:
                 targetFiles: |
