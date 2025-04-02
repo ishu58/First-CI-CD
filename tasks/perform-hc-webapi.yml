@@ -1,0 +1,34 @@
+parameters:
+- name: url
+  type: string
+  default: ''
+
+steps:
+  - task: Powershell@2
+    displayName: Perform Health Check
+    inputs:
+      targetType: inline
+      script: |
+        try {
+          $statusResponse = curl ${{parameters.url}} -UseBasicParsing
+          $statusJson = ConvertFrom-JSON $statusResponse.content
+
+          if($statusJson.status -ne 'Healthy') {
+            throw 'Test endpoint is unhealthy. Please inspect and resolve.'
+        }
+        } catch {
+          $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+          $reader.BaseStream.Position = 0
+          $reader.DiscardBufferedData()
+          $statusResponse = $reader.ReadToEnd()
+
+          $message = '';
+
+          if($statusResponse -like '*HTTP Error 500.30*') {
+            $message = '${{parameters.url}} is unhealthy. ASP.NET Core Could not start. Please investigate Windows Event Logs via NewRelic for Exceptions. It is likely something is wrong with appsettings.json. Example: https://onenr.io/02R5AzJzoRb'
+          } else {
+            $message = '${{parameters.url}} is unhealthy. Please inspect and resolve.'
+          }
+
+          throw [System.Exception] $message
+        }
