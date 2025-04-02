@@ -65,7 +65,7 @@ jobs:
               displayName: Unzip Deployment Payload
               inputs:
                 archiveFilePatterns: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip'
-                destinationFolder: "\\\\20.197.18.219\\c$\\inetpub\\wwwroot\\drop"
+                destinationFolder: '${{ parameters.WebRootFolderPath }}'
                 cleanDestinationFolder: true
                 overwriteExistingFiles: true
 
