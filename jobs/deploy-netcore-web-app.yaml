@@ -74,22 +74,13 @@ jobs:
                   ${{ variables.ArtifactDropPath }}\appsettings-release.json
 
             - task: PowerShell@2
-              displayName: 'Check appsettings-release.json Content'
+              displayName: Replace appsettings.json with appsettings-release.json
               inputs:
-                targetType: 'inline'
+                targetType: inline
+                pwsh: true
                 script: |
-                  $filePath = "\\vm-test-deploy\d$\Web\drop\deploy-DotNet-RSA_2025.4.3.5_1\appsettings-release.json"
-                  if (Test-Path $filePath) {
-                      $content = Get-Content $filePath
-                      if ($content -eq $null -or $content -eq "") {
-                          Write-Error "ERROR: appsettings-release.json is empty!"
-                      } else {
-                          Write-Host "appsettings-release.json content:"
-                          Write-Host $content
-                      }
-                  } else {
-                      Write-Error "ERROR: appsettings-release.json file not found!"
-                  } 
+                  Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings-initial.json"
+                  Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings-release.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings.json"
 
             - task: PowerShellOnTargetMachines@3
               displayName: Deploy Web Application to ${{ parameters.TargetHost }} use PowerShell
