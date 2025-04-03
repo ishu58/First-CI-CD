@@ -81,6 +81,7 @@ jobs:
                 script: |
                   Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings-initial.json"
                   Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings-release.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings.json"
+                pwsh: true  
 
             - task: PowerShellOnTargetMachines@3
               displayName: Deploy Web Application to ${{ parameters.TargetHost }} use PowerShell
