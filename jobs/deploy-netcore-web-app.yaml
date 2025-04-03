@@ -71,7 +71,7 @@ jobs:
               displayName: 'Replace tokens'
               inputs:
                 targetFiles: |
-                  ${{ Agent.TempDirectory }}\appsettings-release.json
+                  ${{ Agent.TempDirectory }}\ExtractedFiles\appsettings-release.json
 
             - task: PowerShell@2
               displayName: Replace appsettings.json with appsettings-release.json
@@ -79,8 +79,8 @@ jobs:
                 targetType: inline
                 pwsh: true
                 script: |
-                  Rename-Item -Path "${{ Agent.TempDirectory }}\appsettings.json" -NewName "${{ Agent.TempDirectory }}\appsettings-initial.json"
-                  Rename-Item -Path "${{ Agent.TempDirectory }}\appsettings-release.json" -NewName "${{ Agent.TempDirectory }}\appsettings.json"
+                  Rename-Item -Path "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings.json" -NewName "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings-initial.json"
+                  Rename-Item -Path "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings-release.json" -NewName "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings.json"
 
             - task: PowerShellOnTargetMachines@3
               displayName: Deploy Web Application to ${{ parameters.TargetHost }} use PowerShell
