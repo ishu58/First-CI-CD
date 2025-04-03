@@ -65,13 +65,13 @@ jobs:
               displayName: Unzip Deployment Payload
               inputs:
                 archiveFilePatterns: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip'
-                destinationFolder: '$(Agent.TempDirectory)\ExtractedFiles'
+                destinationFolder: '$(variables.TempDirectory)'
 
             - task: qetza.replacetokens.replacetokens-task.replacetokens@5
               displayName: 'Replace tokens'
               inputs:
                 targetFiles: |
-                  ${{ Agent.TempDirectory }}\ExtractedFiles\appsettings-release.json
+                  ${{ variables.TempDirectory }}\appsettings-release.json
 
             - task: PowerShell@2
               displayName: Replace appsettings.json with appsettings-release.json
@@ -79,8 +79,8 @@ jobs:
                 targetType: inline
                 pwsh: true
                 script: |
-                  Rename-Item -Path "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings.json" -NewName "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings-initial.json"
-                  Rename-Item -Path "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings-release.json" -NewName "${{ Agent.TempDirectory }}\ExtractedFiles\appsettings.json"
+                  Rename-Item -Path "${{ variables.TempDirectory }}\appsettings.json" -NewName "${{ Agent.TempDirectory }}\appsettings-initial.json"
+                  Rename-Item -Path "${{ variables.TempDirectory }}\appsettings-release.json" -NewName "${{ Agent.TempDirectory }}\appsettings.json"
 
             - task: PowerShellOnTargetMachines@3
               displayName: Deploy Web Application to ${{ parameters.TargetHost }} use PowerShell
