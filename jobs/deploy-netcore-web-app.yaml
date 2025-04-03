@@ -1,20 +1,34 @@
-
 parameters:
 - name: EnvironmentName
-  type: string
-- name: ChannelName
   type: string
   default: ''
 - name: IISApplicationName
   type: string
+  default: ''
 - name: AppPoolName
   type: string
+  default: ''
 - name: IISWebSiteName
   type: string
+  default: ''
+- name: WebsitePhysicalPath
+  type: string
+  default: ''
+- name: VirtualPathForApplication
+  type: string
+  default: ''
+- name: PhysicalPathForApplication
+  type: string
+  default: ''
 - name: AppPoolUsername
   type: string
+  default: ''
 - name: AppPoolPassword
   type: string
+  default: ''
+- name: ServerTagName
+  type: string
+  default: ''
 - name: ArtifactName
   type: string
   default: 'drop'
@@ -24,34 +38,20 @@ parameters:
 - name: OutputName
   type: string
   default: ''
-- name: TargetHost
-  type: string
-- name: RemoteUserName
-  type: string
-- name: RemoteUserPassword
-  type: string
-- name: WebRootFolderPath
-  type: string
-- name: WebRootFolderUNCPath
-  type: string
 - name: HealthChecksUrl
   type: string
   default: ''
 
 jobs:
-  - deployment: DeployWebApplication${{ parameters.ChannelName }}
+  - deployment: DeployWebApplication
     displayName: Deploy Web Application
     dependsOn: ${{ parameters.DependsOn }}
     variables:
-      - name: RemoteWebRootPath
-        value: \\${{ parameters.TargetHost }}\${{ parameters.WebRootFolderUNCPath }}
-      - name: ArtifactDropPath
-        value: \\${{ parameters.TargetHost }}\${{ parameters.WebRootFolderUNCPath }}\drop\$(Build.BuildNumber)_$(System.JobAttempt)${{ parameters.OutputName }}
-      - name: RemoteWebsitePath
-        value: ${{ variables.RemoteWebRootPath }}\${{ parameters.IISWebSiteName }}
-      - name: ApplicationPath
-        value: ${{ parameters.WebRootFolderPath }}\${{ parameters.IISWebSiteName }}\${{ parameters.IISApplicationName }}
-    environment: ${{ parameters.EnvironmentName }}
+      Release.EnvironmentName: ${{ parameters.EnvironmentName }}
+    environment:
+      name: ${{ parameters.EnvironmentName }}
+      resourceType: VirtualMachine
+      tags: ${{ parameters.ServerTagName }}
     strategy:
       runOnce:
         deploy:
@@ -65,85 +65,79 @@ jobs:
               displayName: Unzip Deployment Payload
               inputs:
                 archiveFilePatterns: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip'
-                destinationFolder: '$(variables.ArtifactDropPath)'
+                destinationFolder: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}'
 
-            - task: qetza.replacetokens.replacetokens-task.replacetokens@5
+            - task: qetza.replacetokens.replacetokens-task.replacetokens@3
               displayName: 'Replace tokens'
               inputs:
                 targetFiles: |
-                  ${{ variables.ArtifactDropPath }}\appsettings-release.json
+                  $(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}\appsettings-release.json
 
             - task: PowerShell@2
               displayName: Replace appsettings.json with appsettings-release.json
               inputs:
                 targetType: inline
-                pwsh: false
+                pwsh: true
                 script: |
-                  Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings-initial.json"
-                  Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings-release.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings.json"
+                  Rename-Item -Path "$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}\appsettings.json" -NewName "$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}\appsettings-initial.json"
+                  Rename-Item -Path "$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}\appsettings-release.json" -NewName "$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}\appsettings.json"
 
-            - task: PowerShellOnTargetMachines@3
-              displayName: Deploy Web Application to ${{ parameters.TargetHost }} use PowerShell
+            - task: IISWebAppManagementOnMachineGroup@0
+              displayName: Create or Update Application Pool
               inputs:
-                Machines: ${{ parameters.TargetHost }}
-                UserName: ${{ parameters.RemoteUserName }}
-                UserPassword: ${{ parameters.RemoteUserPassword }}
-                CommunicationProtocol: 'Http'
-                failOnStderr: true
-                ScriptType: 'Inline'
-                InlineScript: |
-                  Import-Module WebAdministration
-                  $debugLog = "AppName: ${{ parameters.IISApplicationName }}; AppPoolName: ${{ parameters.AppPoolName }}; PhysicalPath: ${{variables.RemoteWebsitePath}}\${{ parameters.IISApplicationName }}; SiteName: ${{ parameters.IISWebSiteName }}"
-                  Write-Output $debugLog
-                  Write-Output "Check ${{ parameters.AppPoolName }} available?"
-                  if (!(Test-Path IIS:\AppPools\${{ parameters.AppPoolName }} -pathType container)) {
-                      $app_pool = New-WebAppPool -Name ${{ parameters.AppPoolName }}
-                      Write-Output "Created new app pool"
-                  }
-                  else {
-                    Write-Output "${{ parameters.AppPoolName }} is available"
-                    $app_pool_state = Get-WebAppPoolState -Name ${{ parameters.AppPoolName }}
-                    if ("Stopped" -ne $app_pool_state.Value) {
-                        Write-Output "Stop app pool ${{ parameters.AppPoolName }}"
-                        Stop-WebAppPool -Name ${{ parameters.AppPoolName }}
-                    }
-                    $app_pool = Get-Item IIS:\AppPools\${{ parameters.AppPoolName }}
-                  }
-                  $app_pool.autoStart = $true
-                  $app_pool.startMode = "OnDemand"
-                  $app_pool.managedPipelineMode = "Integrated"
-                  $app_pool.enable32BitAppOnWin64 = $false
-                  $app_pool.managedRuntimeVersion = "v4.0"
-                  $app_pool.processModel.userName = "${{ parameters.AppPoolUsername }}"
-                  $app_pool.processModel.password = "${{ parameters.AppPoolPassword }}"
-                  $app_pool.processModel.identityType = 3
-                  $app_pool | Set-Item
-                  if (Test-Path IIS:\Sites\${{ parameters.IISWebSiteName }}\${{ parameters.IISApplicationName }} -pathType container) {
-                      Write-Output "Remove ${{ parameters.IISApplicationName }} under ${{ parameters.IISWebSiteName }}"
-                      Remove-WebApplication -Name ${{ parameters.IISApplicationName }} -Site ${{ parameters.IISWebSiteName }}
-                  }
-                  if (Test-Path ${{ variables.ApplicationPath }} -pathType container) {
-                      Remove-Item ${{ variables.ApplicationPath }} -Force -Recurse
-                  }
-                  New-Item -ItemType Directory -Path ${{ variables.ApplicationPath }} -Force
-                  Write-Output "${{ variables.ApplicationPath }} is created"
-                  Copy-Item "${{ parameters.WebRootFolderPath }}\drop\$(Build.BuildNumber)_$(System.JobAttempt)${{ parameters.OutputName }}\**" -Destination "${{ variables.ApplicationPath }}" -Recurse -Force
-                  Write-Output "Data is copied from ${{parameters.WebRootFolderPath}}\drop\$(Build.BuildNumber)${{ parameters.OutputName }} to ${{ variables.ApplicationPath }}"
+                IISDeploymentType: 'IISApplicationPool'
+                ActionIISApplicationPool: 'CreateOrUpdateAppPool'
+                AppPoolIdentity: 'SpecificUser'
+                AppPoolUsername: ${{ parameters.AppPoolUsername }}
+                AppPoolPassword: ${{ parameters.AppPoolPassword }}
+                DotNetVersion: 'v4.0'
+                AppPoolName: ${{ parameters.AppPoolName }}
+                PipeLineMode: Integrated
 
-                  New-WebApplication -Name "${{ parameters.IISApplicationName }}" -Site "${{ parameters.IISWebSiteName }}" -PhysicalPath "${{ variables.ApplicationPath }}" -ApplicationPool "${{ parameters.AppPoolName }}" -Force
-                  Write-Output "${{ parameters.IISApplicationName }} is created under ${{ parameters.IISWebSiteName }}"
-                  Start-WebAppPool -Name "${{ parameters.AppPoolName }}"
-                  Write-Output "${{ parameters.AppPoolName }} is started"
+            - task: IISWebAppManagementOnMachineGroup@0
+              displayName: Stop Application Pool
+              inputs:
+                IISDeploymentType: 'IISApplicationPool'
+                ActionIISApplicationPool: 'StopAppPool'
+                StartStopRecycleAppPoolName: ${{ parameters.AppPoolName }}
+
+            - task: IISWebAppDeploymentOnMachineGroup@0
+              displayName: Create or Update Web Application
+              inputs:
+                IISDeploymentType: IISWebApplication
+                ActionIISWebsite: CreateOrUpdateWebsite
+                WebsiteName: ${{ parameters.IISWebSiteName }}
+                WebsitePhysicalPath: ${{ parameters.WebsitePhysicalPath }}
+                AddBinding: false
+                VirtualApplication: ${{ parameters.IISApplicationName }}
+                VirtualPathForApplication: ${{ parameters.VirtualPathForApplication }}
+                ParentWebsiteNameForApplication: ${{ parameters.IISWebSiteName }}
+                PhysicalPathForApplication: ${{ parameters.PhysicalPathForApplication }}
+                AppPoolNameForApplication: ${{ parameters.AppPoolName }}
+                AppPoolIdentityForApplication: SpecificUser
+                AppPoolUsernameForApplication: ${{ parameters.AppPoolUsername }}
+                AppPoolPasswordForApplication: ${{ parameters.AppPoolPassword }}
+                PipeLineModeForApplication: Integrated
+                DotNetVersionForApplication: 'v4.0'
+                CreateOrUpdateAppPoolForApplication: true
+                Package: '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}\'
+                jSONFiles: '**/appsettings.json'
+
+            - task: IISWebAppManagementOnMachineGroup@0
+              displayName: Start Application Pool
+              inputs:
+                IISDeploymentType: 'IISApplicationPool'
+                ActionIISApplicationPool: 'StartAppPool'
+                StartStopRecycleAppPoolName: '${{ parameters.AppPoolName }}'
 
             - task: PowerShell@2
               displayName: Apply Retention Policy
               inputs:
                 targetType: inline
                 script: |
-                  Remove-Item '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip' -Force;
-                  Remove-Item '${{ variables.ArtifactDropPath }}' -Force -Recurse;
+                  Remove-Item '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}.zip' -Force -Recurse;
+                  Remove-Item '$(Agent.BuildDirectory)\drop\$(Build.BuildNumber)${{ parameters.OutputName }}\' -Force -Recurse;
 
-            - ${{ if eq('${{ parameters.HealthChecksUrl }}', '') }}:
-              - template: ../tasks/perform-hc-webapi.yml
-                parameters:
-                  url: ${{ parameters.HealthChecksUrl }}
+            - template: ../tasks/perform-healthcheck-webapi.yml
+              parameters:
+                url: ${{ parameters.HealthChecksUrl }}
