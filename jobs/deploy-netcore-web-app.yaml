@@ -77,7 +77,7 @@ jobs:
               displayName: Replace appsettings.json with appsettings-release.json
               inputs:
                 targetType: inline
-                pwsh: true
+                pwsh: false
                 script: |
                   Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings-initial.json"
                   Rename-Item -Path "${{ variables.ArtifactDropPath }}\appsettings-release.json" -NewName "${{ variables.ArtifactDropPath }}\appsettings.json"
