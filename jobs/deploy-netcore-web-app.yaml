@@ -46,7 +46,7 @@ jobs:
       - name: RemoteWebRootPath
         value: \\${{ parameters.TargetHost }}\${{ parameters.WebRootFolderUNCPath }}
       - name: ArtifactDropPath
-        value: \\${{ parameters.TargetHost }}\${{ parameters.WebRootFolderUNCPath }}\drop\$(Build.BuildNumber)_$(System.JobAttempt)${{ parameters.OutputName }}
+        value: \\${{parameters.TargetHost }}\${{ parameters.WebRootFolderUNCPath }}\drop\$(Build.BuildNumber)_$(System.JobAttempt)${{ parameters.OutputName }}
       - name: RemoteWebsitePath
         value: ${{ variables.RemoteWebRootPath }}\${{ parameters.IISWebSiteName }}
       - name: ApplicationPath
